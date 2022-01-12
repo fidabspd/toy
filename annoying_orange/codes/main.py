@@ -4,7 +4,7 @@ from imutils import face_utils, resize
 import numpy as np
 from moviepy.editor import VideoFileClip
 
-SOURCES_DIR = '../sources/'
+SOURCES_DIR = '../resources/'
 RESULT_DIR = '../result/'
 SIZE = (1753, 1753)
 EYE_WIDTH = 342
@@ -26,17 +26,18 @@ cap = cv2.VideoCapture(SOURCES_DIR+'why55_origin.mov')
 img_array = []
 
 while cap.isOpened():
-    ret, img = cap.read()
+    ret, img = cap.read()  # 프레임을 한개씩 가져옴. 프레임을 제대로 읽었다면 ret값은 True
 
     if not ret:
         break
 
+    # 한 이미지에 있는 모든 얼굴들의 좌표들을 가져옴
     faces = detector(img)
 
     result = orange_img.copy()
 
     if len(faces) > 0:
-        face = faces[0]
+        face = faces[0]  # 얼굴이 하나니까 0번째만
         
         x1, y1, x2, y2 = face.left(), face.top(), face.right(), face.bottom()
         face_img = img[y1:y2, x1:x2].copy()
