@@ -4,7 +4,7 @@ from imutils import face_utils, resize
 import numpy as np
 from moviepy.editor import VideoFileClip
 
-REOURCES_DIR = '../resources/'
+RESOURCES_DIR = '../resources/'
 RESULT_DIR = '../result/'
 SIZE = (1753, 1753)
 EYE_WIDTH = 342
@@ -15,13 +15,13 @@ MOUTH_POS = (616, 1096)
 FRAME = 29.96
 
 
-orange_img = cv2.imread(REOURCES_DIR+'orange.jpg')
+orange_img = cv2.imread(RESOURCES_DIR+'orange.jpg')
 orange_img = cv2.resize(orange_img, dsize=SIZE)
 
 detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor(REOURCES_DIR+'shape_predictor_68_face_landmarks.dat')
+predictor = dlib.shape_predictor(RESOURCES_DIR+'shape_predictor_68_face_landmarks.dat')
 
-cap = cv2.VideoCapture(REOURCES_DIR+'why55_origin.mov')
+cap = cv2.VideoCapture(RESOURCES_DIR+'why55_origin.mov')
 
 img_array = []
 
@@ -123,7 +123,7 @@ for i in range(len(img_array)):
 out.release()
 
 
-videoclip = VideoFileClip(REOURCES_DIR+"why55_origin.mov")
+videoclip = VideoFileClip(RESOURCES_DIR+"why55_origin.mov")
 audioclip = videoclip.audio
 
 new_videoclip = VideoFileClip(RESULT_DIR+"why55_chimrangeee_no_audio.avi")
