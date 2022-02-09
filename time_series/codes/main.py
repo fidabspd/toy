@@ -12,6 +12,7 @@ def parse_args():
     parser.add_argument('--file_name', type=str, help='**.csv')
 
     parser.add_argument('--data_path', type=str, default='../data/')
+    parser.add_argument('--log_path', type=str, default='../logs/')
     parser.add_argument('--model_path', type=str, default='../model/')
     parser.add_argument('--model_name', type=str, default='time_series')
 
@@ -23,8 +24,8 @@ def parse_args():
 
     parser.add_argument('--target_seq_len', type=int, default=10)
     parser.add_argument('--window_size', type=int, default=7*10)
-    # parser.add_argument('--shift', type=int, default=)
-    # parser.add_argument('--target_length', type=str, default=)
+    # parser.add_argument('--shift', type=int, default=1)
+    # parser.add_argument('--target_length', type=str, default=1)
 
     return parser.parse_args()
 
@@ -32,9 +33,16 @@ def parse_args():
 def main(args):
 
     CONFIGS = vars(args)
+
+    dirs = [
+        CONFIGS['model_path'],
+        CONFIGS['log_path']
+    ]
+    check_dirs(dirs)
+
     CONFIGS['shift'] = 1
     CONFIGS['target_length'] = 1
-    CONFIGS['tensorboard_log_path'] = f'../logs/tensorboard/{CONFIGS["model_name"]}_ver{VER}'
+    CONFIGS['tensorboard_log_path'] = f'{CONFIGS["log_path"]}tensorboard/{CONFIGS["model_name"]}_ver{VER}'
     CONFIGS['time_series_cols'] = [
         'Open', 'High', 'Low', 'Close', 'Volume', 'time_stamp',
     ]
@@ -90,12 +98,5 @@ if __name__ == '__main__':
     args = parse_args()
     if args is None:
         exit()
-
-    dirs = [
-        '../logs/',
-        '../logs/tensorboard/',
-        '../model/',
-    ]
-    check_dirs(dirs)
 
     main(args)
