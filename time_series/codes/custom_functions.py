@@ -145,7 +145,6 @@ def train_model(model, train_ds, valid_ds, CONFIGS):
     
     history = model.fit(
         train_ds,
-        batch_size = CONFIGS['batch_size'],
         epochs = CONFIGS['epochs'],
         validation_data = valid_ds,
         callbacks = [
