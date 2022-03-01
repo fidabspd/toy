@@ -110,11 +110,11 @@ def main(args):
     print('Start ChatBot\nEnter the message\n')
     print(f'To stop conversation, Enter "{STOP_SIGN}"\n')
     while True:
-        question = input('You: ')
+        question = input('\nYou: ')
         if question == STOP_SIGN:
             break
         answer, _ = chatbot.qna(question)
-        print(f'ChatBot: {answer}')
+        print(f'ChatBot: {answer}\n')
 
 
 if __name__ == '__main__':
