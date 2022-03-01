@@ -1,5 +1,3 @@
-import time
-import math
 import torch
 from torch import nn
 
@@ -33,12 +31,21 @@ class MultiHeadAttentionLayer(nn.Module):
 
     def scaled_dot_product_attention(self, query, key, value, mask):
         key_t = key.permute(0, 1, 3, 2)
-        energy = torch.matmul(query, key_t) / self.scale
+        energy = torch.matmul(query, key_t) / self.scale  # [batch_size, n_heads, query_len, key_len]
+        # mask shape:
+        # for inp self_attention: [batch_size, 1, 1, key_len(inp)]
+        # for tar self_attention: [batch_size, 1, query_len(tar)(=key_len(tar)), key_len(tar)(=query_len(tar))]
+        # for encd_attention: [batch_size, 1, 1, key_len(inp)]
         if mask is not None:
-            energy = energy.masked_fill(mask==0, -1e10)
+            energy = energy.masked_fill(mask==0, -1e10)  # key에 masking
+            # `masked_fill`의 parameter로 받는 `mask==0`에 대해. 
+            # - `energy`와 shape의 차원의 개수가 달라도 괜찮다. `energy`와 `mask==0`의 차원 개수중 더 많은 차원의 개수를 가지도록 자동으로 맞춘다.
+            # - 각 차원의 len은 `energy`의 각 차원 len과 일치하거나 1이어야한다. (배수는 안된다.)
         attention = torch.softmax(energy, axis=-1)  # axis=-1 은 key의 문장 위치
         attention = self.dropout(attention)
-        x = torch.matmul(attention, value)
+        # attention shape: [batch_size, n_heads, query_len, key_len(=value_len)]
+        # value shape: [batch_size, n_heads, value_len(=key_len), head_dim]
+        x = torch.matmul(attention, value)  # [batch_size, n_heads, query_len, head_dim]
         return x, attention  # attention 시각화에 쓸 수 있음
 
     def forward(self, query, key, value, mask=None):
@@ -54,12 +61,12 @@ class MultiHeadAttentionLayer(nn.Module):
         value = self.split_heads(value, batch_size)
 
         x, attention = self.scaled_dot_product_attention(query, key, value, mask)
-        x = x.permute(0, 2, 1, 3).contiguous()  # [batch_size, seq_len, n_heads, head_dim]
-        x = x.view(batch_size, -1, self.hidden_dim)  # [batch_size, seq_len, hidden_dim]
+        x = x.permute(0, 2, 1, 3).contiguous()  # [batch_size, query_len, n_heads, head_dim]
+        x = x.view(batch_size, -1, self.hidden_dim)  # [batch_size, query_len, hidden_dim]
 
         outputs = self.fc_o(x)
         
-        return outputs, attention
+        return outputs, attention  # [batch_size, query_len, hidden_dim]
 
 
 class PositionwiseFeedforwardLayer(nn.Module):
@@ -102,7 +109,7 @@ class EncoderLayer(nn.Module):
         ff_outputs = self.dropout(ff_outputs)
         ff_outputs = self.pos_ff_norm(attn_outputs+ff_outputs)  # residual connection
 
-        return ff_outputs
+        return ff_outputs  # [batch_size, query_len(inp), hidden_dim]
 
 
 class DecoderLayer(nn.Module):
@@ -123,23 +130,26 @@ class DecoderLayer(nn.Module):
         self_attn_outputs, _ = self.self_attention(target, target, target, target_mask)
         self_attn_outputs = self.dropout(self_attn_outputs)
         self_attn_outputs = self.self_attn_norm(target+self_attn_outputs)
-
-        encd_attn_outputs, attention = self.encd_attention(target, encd, encd, encd_mask)
+        
+        # self_attn_outputs shape: [batch_size, query_len(tar), hidden_dim]
+        # encd shape: [batch_size, query_len(inp), hidden_dim]
+        # new_query_len = query_len(tar); new_key_len(=new_val_len) = query_len(inp)
+        encd_attn_outputs, attention = self.encd_attention(self_attn_outputs, encd, encd, encd_mask)
         encd_attn_outputs = self.dropout(encd_attn_outputs)
         encd_attn_outputs = self.encd_attn_norm(self_attn_outputs+encd_attn_outputs)
 
         outputs = self.pos_feedforward(encd_attn_outputs)
         outputs = self.dropout(outputs)
-        outputs = self.pos_ff_norm(outputs)
+        outputs = self.pos_ff_norm(encd_attn_outputs+outputs)
 
-        return outputs, attention
+        return outputs, attention  # [batch_size, query_len(tar), hidden_dim]
 
 
 class Encoder(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, n_layers, n_heads, pf_dim,
                  dropout_ratio, device, max_seq_len=100):
-        # input_dim = len(vocab)
+        # input_dim = encoder vocab_size
         super().__init__()
         self.device = device
         self.scale = torch.sqrt(torch.FloatTensor([hidden_dim])).to(device)
@@ -173,6 +183,7 @@ class Decoder(nn.Module):
     
     def __init__(self, output_dim, hidden_dim, n_layers, n_heads, pf_dim,
                  dropout_ratio, device, max_seq_len=100):
+        # output_dim = decoder vocab_size
         super().__init__()
         self.device = device
         self.scale = torch.sqrt(torch.FloatTensor([hidden_dim])).to(device)
@@ -201,7 +212,7 @@ class Decoder(nn.Module):
         for layer in self.decd_stk:
             outputs, attention = layer(outputs, encd, target_mask, encd_mask)
 
-        outputs = self.fc_out(outputs)
+        outputs = self.fc_out(outputs)  # [batch_size, query_len(tar), decoder vocab_size]
 
         return outputs, attention
         
@@ -213,6 +224,8 @@ class Transformer(nn.Module):
         super().__init__()
         self.device = device
 
+        self.out_seq_len = out_seq_len
+
         self.encoder = Encoder(
             input_dim, hidden_dim, n_layers, n_heads, pf_dim,
             dropout_ratio, device, in_seq_len
@@ -223,13 +236,13 @@ class Transformer(nn.Module):
         )
         self.pad_idx = pad_idx
 
-    def create_padding_mask(self, inputs, for_target=False):
-        mask = (inputs != self.pad_idx).unsqueeze(1).unsqueeze(2)
+    def create_padding_mask(self, key, for_target=False):
+        mask = (key != self.pad_idx).unsqueeze(1).unsqueeze(2)
         if for_target:
-            target_len = inputs.shape[1]
-            target_sub_mask = torch.tril(torch.ones((target_len, target_len), device = self.device)).bool()
+            key_len = key.shape[1]
+            target_sub_mask = torch.tril(torch.ones((key_len, key_len), device = self.device)).bool()
             mask = mask & target_sub_mask
-        return mask
+        return mask  # [batch_size, 1, 1, key_len]
 
     def forward(self, inp, tar):
         inp_mask = self.create_padding_mask(inp)
@@ -237,105 +250,7 @@ class Transformer(nn.Module):
 
         enc_inp = self.encoder(inp, inp_mask)
         output, attention = self.decoder(tar, enc_inp, tar_mask, inp_mask)
+        # output shape: [batch_size, query_len(tar), decoder vocab_size]
+        # attention_shape: [batch_size, n_heads, query_len(tar), key_len(inp)]
 
         return output, attention
-
-
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-
-def initialize_weights(m):
-    if hasattr(m, 'weight') and m.weight.dim() > 1:
-        nn.init.xavier_uniform_(m.weight.data)
-
-
-def train_one_epoch(model, dl, optimizer, criterion, clip, device):
-    model.train()
-    epoch_loss = 0
-    for inp, tar in dl:
-        inp, tar = inp.to(device), tar.to(device)
-
-        optimizer.zero_grad()
-
-        outputs, _ = model(inp, tar[:,:-1])
-
-        output_dim = outputs.shape[-1]
-
-        outputs = outputs.contiguous().view(-1, output_dim)
-        tar = tar[:,1:].contiguous().view(-1)
-
-        loss = criterion(outputs, tar)
-        loss.backward()
-
-        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
-
-        optimizer.step()
-
-        epoch_loss += loss.item()
-
-    return epoch_loss / len(dl)
-
-
-def evaluate(model, dl, criterion, device):
-    model.eval()
-    epoch_loss = 0
-
-    with torch.no_grad():
-        for inp, tar in dl:
-            inp, tar = inp.to(device), tar.to(device)
-            outputs, _ = model(inp, tar[:,:-1])
-
-            output_dim = outputs.shape[-1]
-
-            outputs = outputs.contiguous().view(-1, output_dim)
-            tar = tar[:,1:].contiguous().view(-1)
-            loss = criterion(outputs, tar)
-
-            epoch_loss += loss.item()
-
-    return epoch_loss / len(dl)
-
-
-def epoch_time(start_time, end_time):
-    elapsed_time = end_time - start_time
-    elapsed_mins = int(elapsed_time / 60)
-    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
-    return elapsed_mins, elapsed_secs
-
-
-def train(model, n_epochs, es_patience, train_dl, valid_dl,
-          optimizer, criterion, clip, device, model_path, model_name='chatbot'):
-    best_valid_loss = float('inf')
-    best_epoch = 0
-
-    for epoch in range(n_epochs):
-        start_time = time.time()
-        
-        train_loss = train_one_epoch(model, train_dl, optimizer, criterion, clip, device)
-        if valid_dl is not None:
-            valid_loss = evaluate(model, valid_dl, criterion, device)
-
-        end_time = time.time()
-        epoch_mins, epoch_secs = epoch_time(start_time, end_time)
-
-        if valid_dl is not None:
-            if valid_loss < best_valid_loss:
-                best_epoch = epoch
-                print('Best!')
-                best_valid_loss = valid_loss
-                torch.save(model, model_path+model_name+'.pt')
-
-        print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
-        print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):.3f}')
-        if valid_dl is not None:
-            print(f'\tValidation Loss: {valid_loss:.3f} | Validation PPL: {math.exp(valid_loss):.3f}')
-
-            if epoch-best_epoch >= es_patience:
-                print(f'Best Epoch: {best_epoch + 1:02}')
-                print(f'\tBest Train Loss: {train_loss:.3f} | Best Train PPL: {math.exp(train_loss):.3f}')
-                print(f'\tBest Validation Loss: {valid_loss:.3f} | Best Validation PPL: {math.exp(valid_loss):.3f}')
-                break
-    
-    if valid_dl is None:
-        torch.save(model, model_path+model_name+'.pt')
