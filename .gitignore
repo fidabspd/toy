@@ -5,5 +5,8 @@ logs
 *.log
 model
 
+# chatbot
+!chatbot/model/
+
 # mask_detection
 mask_detection/data/
