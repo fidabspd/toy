@@ -117,9 +117,11 @@ def train_one_epoch(model, dl, optimizer, criterion, clip, device, n_check=5):
 
 
 def evaluate(model, dl, criterion, device):
-    model.eval()
-    epoch_loss = 0
+    n_data = len(dl.dataset)
+    
+    valid_loss = 0
 
+    model.eval()
     with torch.no_grad():
         for inp, tar in dl:
             inp, tar = inp.to(device), tar.to(device)
@@ -131,9 +133,9 @@ def evaluate(model, dl, criterion, device):
             tar = tar[:,1:].contiguous().view(-1)
             loss = criterion(outputs, tar)
 
-            epoch_loss += loss.item()
+            valid_loss += loss.item()/n_data
 
-    return epoch_loss / len(dl)
+    return valid_loss
 
 
 def epoch_time(start_time, end_time):
