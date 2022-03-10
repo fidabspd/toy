@@ -7,7 +7,7 @@
     "buffer_size": 2048,
     "batch_size": 64,
     "learning_rate": 1e-4,
-    "n_epochs": 10,
+    "n_epochs": 100,
     "es_patience": 10,
 
     "encoder_n_filters": [32, 64, 128],
