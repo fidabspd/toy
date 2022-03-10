@@ -46,3 +46,10 @@
 - `chatbot/codes/`로 이동하여 `chatbot.py`를 실행하면 테스트가 가능하다.
   - 하지만 아쉽게도 Nvidia GPU를 사용하는 환경에서만 작동 가능하다.
     cpu도 가능하게 하려면 할 수 있겠지만 생략.
+
+## lung_ct
+
+폐 ct 사진에서 폐에 해당하는 부분만 segment한다. CNN 기반이며 pooling과 upsampling으로 사진을 다시 복원한다.
+
+- `lung_ct/codes/`에서 `train_segmenter.py`를 실행하면 훈련
+- `visualization.ipynb`에서 훈련결과 시각화를 볼 수 있다.
