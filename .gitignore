@@ -10,3 +10,6 @@ model
 
 # mask_detection
 mask_detection/data/
+
+# lung_ct
+lung_ct/data/
