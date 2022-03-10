@@ -52,4 +52,5 @@
 폐 ct 사진에서 폐에 해당하는 부분만 segment한다. CNN 기반이며 pooling과 upsampling으로 사진을 다시 복원한다.
 
 - `lung_ct/codes/`에서 `train_segmenter.py`를 실행하면 훈련
+  - dataset은 용량 이슈로 없음.
 - `visualization.ipynb`에서 훈련결과 시각화를 볼 수 있다.
