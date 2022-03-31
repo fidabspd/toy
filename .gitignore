@@ -13,3 +13,6 @@ mask_detection/data/
 
 # lung_ct
 lung_ct/data/
+
+# steam_review
+steam_review/data/
